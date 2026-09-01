@@ -3,7 +3,7 @@
 The specs define **what** to build. This defines **the order**, and how you know each
 phase is actually finished.
 
-Repos: `akura-api` (NestJS) and `akura-app` (Next.js). Separate repos, separate
+Repos: `akura-core` (NestJS) and `akura-app` (Next.js). Separate repos, separate
 deploys, HTTP between them.
 
 ## How this is sliced
@@ -27,7 +27,8 @@ Do not start a phase until the previous phase's exit check passes.
 This phase feels like nothing is happening and is the highest-leverage phase in the
 plan.
 
-### akura-api
+### akura-core
+
 1. `nest new`, install dependencies (spec §2).
 2. `src/shared/config/` — zod env schema validated at boot. The app must refuse to
    start without `JWT_SECRET`, `DATABASE_URL`, `FRONTEND_ORIGIN`.
@@ -44,6 +45,7 @@ plan.
 9. A throwaway `GET /health` returning `{ ok: true }`.
 
 ### akura-app
+
 10. `create-next-app --typescript --app --tailwind`.
 11. Rename `next.config.js` → `next.config.ts`. Confirm no `tailwind.config.ts` exists
     (correct for v4) and `globals.css` uses `@import "tailwindcss";`.
@@ -53,6 +55,7 @@ plan.
 15. A temporary button on `/` calling `/health`.
 
 ### Exit check
+
 - [ ] The button shows `{ ok: true }` — CORS is correct.
 - [ ] `logs/http-1.txt` has one NDJSON line, stamped `+0800`.
 - [ ] `logs/app-1.txt` has a matching readable line.
@@ -73,7 +76,8 @@ plan.
 **Goal:** register, log in, stay logged in, log out. The hardest plumbing, done while
 there is nothing else to break.
 
-### akura-api — `identity` context
+### akura-core — `identity` context
+
 1. Domain: `User` entity, `Email` value object, `UserRepository` interface.
 2. Infrastructure: `PrismaUserRepository`, bcrypt cost 12.
 3. Application: `RegisterUser`, `LoginUser` commands; `GetUserByEmail` query.
@@ -83,12 +87,14 @@ there is nothing else to break.
 6. Tighter throttle on `/auth/login` and `/auth/register`.
 
 ### akura-app
+
 7. `app/login/page.tsx` — mode toggle, role select on register.
 8. `AuthContext` — `me()` on mount, exposing `user`, `loading`, `refresh()`, `logout()`.
 9. `app/dashboard/page.tsx` placeholder showing name, role, logout button.
 10. `middleware.ts` redirecting `/dashboard` when the cookie is absent.
 
 ### Exit check
+
 - [ ] Register as contractor → dashboard shows name and role.
 - [ ] Login response body has **no token**.
 - [ ] Cookie is present with **HttpOnly**; `document.cookie` does not show it.
@@ -109,7 +115,8 @@ there is nothing else to break.
 
 **Goal:** a contractor creates a project naming a client; both parties see it.
 
-### akura-api — `projects` context
+### akura-core — `projects` context
+
 1. Domain: `Project` entity with `hasAccess()`, repository interface.
 2. Infrastructure: `PrismaProjectRepository` plus the `project_participants` read
    model.
@@ -118,10 +125,12 @@ there is nothing else to break.
 4. Interface: `ProjectsController`, guarded.
 
 ### akura-app
+
 5. Real `/dashboard` — project list, empty state, create form (contractor only).
 6. `app/project/[id]/page.tsx` stub showing the project name.
 
 ### Exit check
+
 - [ ] Register a second account as **client** in incognito.
 - [ ] Contractor creates a project with the client's email → appears in both lists.
 - [ ] Unregistered email → clear 404 in the UI.
@@ -139,7 +148,8 @@ there is nothing else to break.
 
 **Goal:** the contractor's checklist.
 
-### akura-api — `progress` context
+### akura-core — `progress` context
+
 1. Domain: `Stage` entity, `updateProgress()` raising `StageProgressLogged`.
 2. Infrastructure: `PrismaStageRepository`, read port for `project_participants`.
 3. Application: `CreateStage`, `LogStageProgress` (contractor only), plus an event
@@ -149,10 +159,12 @@ there is nothing else to break.
 **On the PATCH:** authorize against the stage's own `projectId`, never the URL's.
 
 ### akura-app
+
 5. Stage list, status buttons, add-stage form. Contractor-only controls.
 6. Re-fetch after each mutation.
 
 ### Exit check
+
 - [ ] Contractor adds a stage; marking `COMPLETED` persists across refresh.
 - [ ] Client sees the same stage and status.
 - [ ] Client attempting the PATCH via curl → **403**.
@@ -165,7 +177,8 @@ there is nothing else to break.
 
 **Goal:** the core loop closes. This is why the product exists.
 
-### akura-api — `approvals` context
+### akura-core — `approvals` context
+
 1. Domain: `Approval` entity, `Money` value object,
    **`decide()` throwing unless `PENDING`**, raising `ApprovalDecided`.
 2. Infrastructure: `PrismaApprovalRepository`.
@@ -174,10 +187,12 @@ there is nothing else to break.
 4. Interface: `POST /projects/:projectId/approvals`, `PATCH /approvals/:approvalId`.
 
 ### akura-app
+
 5. Approvals list; approve/decline while `PENDING`, hidden once decided.
 6. Raise-VO form (contractor only) with money conversion both directions.
 
 ### Exit check
+
 - [ ] RM 3,200 stores as `320000`, displays as `3200.00`.
 - [ ] Client approves → `APPROVED` with `decidedAt` set; contractor sees it on refresh.
 - [ ] Buttons disappear once decided.
@@ -195,6 +210,7 @@ there is nothing else to break.
 **Goal:** something a contractor can find and understand before signing up.
 
 ### akura-app
+
 1. `/` as a Server Component, statically generated — the problem, the product, a call
    to action. Written for a contractor tired of arguing over WhatsApp, not for
    "project management" generally.
@@ -205,6 +221,7 @@ there is nothing else to break.
 6. `next/font` and `next/image` where applicable.
 
 ### Exit check
+
 - [ ] Build output shows `/` as static.
 - [ ] `view-source:` shows real copy, not an empty div.
 - [ ] `/robots.txt` and `/sitemap.xml` are correct.
@@ -228,6 +245,7 @@ there is nothing else to break.
 10. Frontend: loading states everywhere, errors shown to the user rather than swallowed.
 
 ### Exit check
+
 - [ ] All 30 items in `BACKEND_SPEC.md` §12 pass.
 - [ ] All 19 items in `FRONTEND_SPEC.md` §11 pass.
 
@@ -238,7 +256,7 @@ there is nothing else to break.
 1. **Buy `akura.my` first** (check MyIPO for trademark conflicts too). Both apps must
    sit on one registrable domain or the cookie has to become `sameSite: 'none'`, which
    removes the browser's CSRF protection.
-2. Railway: deploy `akura-api`, add Railway Postgres in the same project. Set
+2. Railway: deploy `akura-core`, add Railway Postgres in the same project. Set
    `JWT_SECRET` (fresh, not the dev one), `FRONTEND_ORIGIN=https://app.akura.my`,
    `COOKIE_DOMAIN=.akura.my`, `TZ`, `NODE_ENV=production`.
 3. `prisma migrate deploy` against the production database.
@@ -255,16 +273,16 @@ there is nothing else to break.
 
 ## Rough effort
 
-| Phase | Feel |
-|---|---|
-| 0 | Slowest relative to visible output. Logging and config are fiddly. |
-| 1 | Second slowest — first pass through the CQRS pattern. |
-| 2 | Faster; the pattern starts repeating. |
-| 3 | Faster still. |
-| 4 | Mechanical, apart from the `decide()` invariant. |
-| 5 | Content-writing more than coding. |
-| 6 | Short if you tested as you went. |
-| 7 | Half a day plus DNS propagation. |
+| Phase | Feel                                                               |
+| ----- | ------------------------------------------------------------------ |
+| 0     | Slowest relative to visible output. Logging and config are fiddly. |
+| 1     | Second slowest — first pass through the CQRS pattern.              |
+| 2     | Faster; the pattern starts repeating.                              |
+| 3     | Faster still.                                                      |
+| 4     | Mechanical, apart from the `decide()` invariant.                   |
+| 5     | Content-writing more than coding.                                  |
+| 6     | Short if you tested as you went.                                   |
+| 7     | Half a day plus DNS propagation.                                   |
 
 The CQRS overhead is front-loaded — six files for what would be one service method
 feels absurd in Phase 1 and unremarkable by Phase 4.
@@ -275,11 +293,11 @@ feels absurd in Phase 1 and unremarkable by Phase 4.
 
 Not part of the MVP. Revisit once a real contractor has used it.
 
-| Next | Where it attaches |
-|---|---|
-| Email notifications | Subscribe to `ApprovalDecided` |
-| Photo uploads | Presigned URLs; `photoUrl` already exists |
-| Progress claim PDFs | Read completed stages + approved VOs |
-| WhatsApp notifications | Same event seam, different transport |
-| Queues (BullMQ) | Needs the persistent host you already chose |
-| Microservice split | Contexts already isolated; swap in-process events for a broker |
+| Next                   | Where it attaches                                              |
+| ---------------------- | -------------------------------------------------------------- |
+| Email notifications    | Subscribe to `ApprovalDecided`                                 |
+| Photo uploads          | Presigned URLs; `photoUrl` already exists                      |
+| Progress claim PDFs    | Read completed stages + approved VOs                           |
+| WhatsApp notifications | Same event seam, different transport                           |
+| Queues (BullMQ)        | Needs the persistent host you already chose                    |
+| Microservice split     | Contexts already isolated; swap in-process events for a broker |

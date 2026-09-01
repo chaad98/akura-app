@@ -1,7 +1,7 @@
 # Frontend Spec — akura-app
 
 Next.js (App Router) + TypeScript + Tailwind CSS v4.
-Talks to `akura-api` over HTTP. No database access in this repo.
+Talks to `akura-core` over HTTP. No database access in this repo.
 
 ---
 
@@ -10,10 +10,10 @@ Talks to `akura-api` over HTTP. No database access in this repo.
 Akura has two halves with opposite requirements. Treating them the same is the main
 thing to avoid.
 
-| Half | Pages | Rendering | Why |
-|---|---|---|---|
-| **Public** | `/`, `/pricing`, `/how-it-works` | **SSG** — static at build time | Google indexes these; they must be fast and crawlable |
-| **App** | `/login`, `/dashboard`, `/project/[id]` | **CSR** — client components fetching from the API | Behind auth, never indexed, personalised per user |
+| Half       | Pages                                   | Rendering                                         | Why                                                   |
+| ---------- | --------------------------------------- | ------------------------------------------------- | ----------------------------------------------------- |
+| **Public** | `/`, `/pricing`, `/how-it-works`        | **SSG** — static at build time                    | Google indexes these; they must be fast and crawlable |
+| **App**    | `/login`, `/dashboard`, `/project/[id]` | **CSR** — client components fetching from the API | Behind auth, never indexed, personalised per user     |
 
 **Why the app half is not SSR.** Server-rendering an authenticated page means
 browser → Vercel → `api.akura.my` → back, adding a network hop per navigation, with
@@ -89,14 +89,17 @@ Unavoidable non-TS files: `package.json`, `tsconfig.json`, `.eslintrc.json`,
 // tsconfig.json
 { "strict": true, "noImplicitAny": true, "noUncheckedIndexedAccess": true }
 ```
+
 ```json
 // .eslintrc.json
 {
   "rules": { "@typescript-eslint/no-explicit-any": "error" },
-  "overrides": [{
-    "files": ["**/*.test.ts", "**/*.test.tsx"],
-    "rules": { "@typescript-eslint/no-explicit-any": "off" }
-  }]
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": { "@typescript-eslint/no-explicit-any": "off" }
+    }
+  ]
 }
 ```
 
@@ -110,34 +113,58 @@ The backend is a separate repo with no shared package, so this repo declares its
 types mirroring the API responses:
 
 ```ts
-export type Role = 'CONTRACTOR' | 'CLIENT';
-export type StageStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
-export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'DECLINED';
+export type Role = "CONTRACTOR" | "CLIENT";
+export type StageStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
+export type ApprovalStatus = "PENDING" | "APPROVED" | "DECLINED";
 
-export interface User { id: string; email: string; name: string; role: Role }
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+}
 
 export interface Stage {
-  id: string; projectId: string; title: string; status: StageStatus;
-  note: string | null; photoUrl: string | null;
-  createdAt: string; updatedAt: string;        // ISO 8601 UTC
+  id: string;
+  projectId: string;
+  title: string;
+  status: StageStatus;
+  note: string | null;
+  photoUrl: string | null;
+  createdAt: string;
+  updatedAt: string; // ISO 8601 UTC
 }
 
 export interface Approval {
-  id: string; projectId: string; title: string; description: string;
-  costCents: number;                            // integer cents
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  costCents: number; // integer cents
   status: ApprovalStatus;
-  createdAt: string; decidedAt: string | null;
+  createdAt: string;
+  decidedAt: string | null;
 }
 
 export interface Project {
-  id: string; name: string; contractorId: string; clientId: string; createdAt: string;
+  id: string;
+  name: string;
+  contractorId: string;
+  clientId: string;
+  createdAt: string;
 }
 
 export interface ProjectDetail extends Project {
-  stages: Stage[]; approvals: Approval[];
+  stages: Stage[];
+  approvals: Approval[];
 }
 
-export interface Paginated<T> { items: T[]; page: number; limit: number; total: number }
+export interface Paginated<T> {
+  items: T[];
+  page: number;
+  limit: number;
+  total: number;
+}
 ```
 
 Hand-syncing this with the backend is the real cost of separate repos. When a response
@@ -170,8 +197,8 @@ Make it generic so `res.json()`'s `any` never escapes:
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...options.headers },
   });
   if (!res.ok) {
     const body: unknown = await res.json().catch(() => ({}));
@@ -181,19 +208,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 ```
 
-| Method | Calls | Returns |
-|---|---|---|
-| `register(data)` | `POST /auth/register` | `User` |
-| `login(data)` | `POST /auth/login` | `User` |
-| `logout()` | `POST /auth/logout` | `void` |
-| `me()` | `GET /auth/me` | `User` |
-| `listProjects(page?)` | `GET /projects` | `Paginated<Project>` |
-| `createProject(data)` | `POST /projects` | `Project` |
-| `getProject(id)` | `GET /projects/:id` | `ProjectDetail` |
-| `createStage(projectId, data)` | `POST /projects/:projectId/stages` | `Stage` |
-| `updateStage(projectId, stageId, data)` | `PATCH /projects/:projectId/stages/:stageId` | `Stage` |
-| `createApproval(projectId, data)` | `POST /projects/:projectId/approvals` | `Approval` |
-| `decideApproval(approvalId, decision)` | `PATCH /approvals/:approvalId` | `Approval` |
+| Method                                  | Calls                                        | Returns              |
+| --------------------------------------- | -------------------------------------------- | -------------------- |
+| `register(data)`                        | `POST /auth/register`                        | `User`               |
+| `login(data)`                           | `POST /auth/login`                           | `User`               |
+| `logout()`                              | `POST /auth/logout`                          | `void`               |
+| `me()`                                  | `GET /auth/me`                               | `User`               |
+| `listProjects(page?)`                   | `GET /projects`                              | `Paginated<Project>` |
+| `createProject(data)`                   | `POST /projects`                             | `Project`            |
+| `getProject(id)`                        | `GET /projects/:id`                          | `ProjectDetail`      |
+| `createStage(projectId, data)`          | `POST /projects/:projectId/stages`           | `Stage`              |
+| `updateStage(projectId, stageId, data)` | `PATCH /projects/:projectId/stages/:stageId` | `Stage`              |
+| `createApproval(projectId, data)`       | `POST /projects/:projectId/approvals`        | `Approval`           |
+| `decideApproval(approvalId, decision)`  | `PATCH /approvals/:approvalId`               | `Approval`           |
 
 `decideApproval` is **flat**, not nested under a project. Match the backend exactly.
 
@@ -226,28 +253,31 @@ gate.** Never rely on middleware or conditional rendering for security.
 
 ## 7. Pages
 
-| Route | Rendering | Purpose |
-|---|---|---|
-| `/` | SSG | Landing — the problem, the product, a call to action |
-| `/pricing` | SSG | Optional for v1 |
-| `/login` | CSR | Register or log in, choosing contractor or client |
-| `/dashboard` | CSR | Project list; create-project form (contractor only) |
-| `/project/[id]` | CSR | The shared view: stage checklist + approvals |
+| Route           | Rendering | Purpose                                              |
+| --------------- | --------- | ---------------------------------------------------- |
+| `/`             | SSG       | Landing — the problem, the product, a call to action |
+| `/pricing`      | SSG       | Optional for v1                                      |
+| `/login`        | CSR       | Register or log in, choosing contractor or client    |
+| `/dashboard`    | CSR       | Project list; create-project form (contractor only)  |
+| `/project/[id]` | CSR       | The shared view: stage checklist + approvals         |
 
 App pages need `'use client'`. Public pages should stay Server Components.
 
 ### `/login`
+
 One page, a `mode` toggle between login and register. Register adds name and a role
 select labelled in plain language ("I'm a contractor" / "I'm a client"). On success the
 cookie is set server-side — refresh the auth context, then route to `/dashboard`.
 
 ### `/dashboard`
+
 Fetches `listProjects()`. The backend filters by role, so both roles use the same call.
 Empty state when there are none. Create-project form shown only when
 `user.role === 'CONTRACTOR'`. Note the client must already have an account or the API
 returns 404 — say so in the placeholder.
 
 ### `/project/[id]`
+
 One `getProject(id)` call returns stages and approvals nested.
 
 **Stages** — list with title and status; status buttons and an add-stage form for the
@@ -307,6 +337,7 @@ abstractions over them yet.
 ## 11. Acceptance checklist
 
 ### Rendering and SEO
+
 1. `/` is statically generated — confirm in the build output.
 2. `view-source:` on `/` shows the marketing copy in the HTML, not an empty div.
 3. `/robots.txt` disallows `/dashboard`, `/project/`, `/login`.
@@ -314,6 +345,7 @@ abstractions over them yet.
 5. Lighthouse on `/`: Performance and SEO both 90+.
 
 ### Auth
+
 6. Register → redirected to dashboard with name and role shown.
 7. DevTools → Application → Cookies: `access_token` present, **HttpOnly** ticked.
 8. Console: `document.cookie` does **not** show `access_token`.
@@ -322,6 +354,7 @@ abstractions over them yet.
 11. Visiting `/dashboard` logged out → redirected, no flash of content.
 
 ### Core flow (two browser profiles — normal plus incognito)
+
 12. Contractor creates a project with the client's email.
 13. Client logs in and sees the same project.
 14. Contractor adds a stage, marks it `COMPLETED`; the client sees it.
@@ -330,6 +363,7 @@ abstractions over them yet.
 17. Contractor refreshes → sees `APPROVED`.
 
 ### Type safety
+
 18. `npm run build` passes with no type errors.
 19. `grep -r ": any" app/ lib/` finds nothing outside test files.
 

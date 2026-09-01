@@ -1,4 +1,4 @@
-# Backend Spec — akura-api
+# Backend Spec — akura-core
 
 NestJS + Prisma + PostgreSQL. TypeScript only.
 Architecture: **CQRS + DDD, deployed as a modular monolith.**
@@ -111,7 +111,7 @@ Status: `PENDING` | `IN_PROGRESS` | `COMPLETED` | `BLOCKED`.
 createdAt, decidedAt?. Status: `PENDING` | `APPROVED` | `DECLINED`.
 
 `decide(decision)` — **must throw if status is not `PENDING`.** A decided approval is
-settled; re-deciding destroys the audit trail. This invariant *is* the product. On
+settled; re-deciding destroys the audit trail. This invariant _is_ the product. On
 decide, set `decidedAt` and raise `ApprovalDecided`.
 
 ### Cross-context authorization
@@ -137,12 +137,14 @@ Tables mirror the aggregates: `User`, `Project`, `Stage`, `Approval`.
 - `decidedAt` is nullable, set only on decision.
 
 **Indexes** — add these in the initial migration, not later:
+
 ```prisma
 @@index([contractorId])   // Project
 @@index([clientId])       // Project
 @@index([projectId])      // Stage
 @@index([projectId])      // Approval
 ```
+
 Every list query filters on one of these. Without them you table-scan from the first
 real project.
 
@@ -168,29 +170,33 @@ parameters.
 ## 5. Commands and queries
 
 ### identity
-| Type | Name | Notes |
-|---|---|---|
-| Command | `RegisterUser` | 409 on duplicate email; bcrypt cost 12 |
-| Command | `LoginUser` | issues JWT |
-| Query | `GetUserByEmail` | used when creating a project |
+
+| Type    | Name             | Notes                                  |
+| ------- | ---------------- | -------------------------------------- |
+| Command | `RegisterUser`   | 409 on duplicate email; bcrypt cost 12 |
+| Command | `LoginUser`      | issues JWT                             |
+| Query   | `GetUserByEmail` | used when creating a project           |
 
 ### projects
-| Type | Name | Notes |
-|---|---|---|
-| Command | `CreateProject` | resolves client by email; 404 if missing or not `CLIENT` |
-| Query | `ListProjectsForUser` | filters by role; paginated |
-| Query | `GetProjectDetail` | includes stages + approvals; 403 unless participant |
+
+| Type    | Name                  | Notes                                                    |
+| ------- | --------------------- | -------------------------------------------------------- |
+| Command | `CreateProject`       | resolves client by email; 404 if missing or not `CLIENT` |
+| Query   | `ListProjectsForUser` | filters by role; paginated                               |
+| Query   | `GetProjectDetail`    | includes stages + approvals; 403 unless participant      |
 
 ### progress
-| Type | Name | Notes |
-|---|---|---|
-| Command | `CreateStage` | contractor only |
+
+| Type    | Name               | Notes                                         |
+| ------- | ------------------ | --------------------------------------------- |
+| Command | `CreateStage`      | contractor only                               |
 | Command | `LogStageProgress` | contractor only; raises `StageProgressLogged` |
 
 ### approvals
-| Type | Name | Notes |
-|---|---|---|
-| Command | `RaiseApproval` | contractor only |
+
+| Type    | Name             | Notes                                     |
+| ------- | ---------------- | ----------------------------------------- |
+| Command | `RaiseApproval`  | contractor only                           |
 | Command | `DecideApproval` | **client only**; raises `ApprovalDecided` |
 
 > `DecideApproval` carries the single most important rule in the app: a contractor must
@@ -212,19 +218,19 @@ nothing; retrofitting means touching every handler.
 Controllers validate the DTO, dispatch a command or query, return the result. **No
 business logic in controllers.**
 
-| Method | Path | Dispatches | Who |
-|---|---|---|---|
-| POST | `/auth/register` | `RegisterUser` | public |
-| POST | `/auth/login` | `LoginUser` | public |
-| POST | `/auth/logout` | — | authenticated |
-| GET | `/auth/me` | — | authenticated |
-| POST | `/projects` | `CreateProject` | contractor |
-| GET | `/projects` | `ListProjectsForUser` | both |
-| GET | `/projects/:id` | `GetProjectDetail` | participants |
-| POST | `/projects/:projectId/stages` | `CreateStage` | contractor |
-| PATCH | `/projects/:projectId/stages/:stageId` | `LogStageProgress` | contractor |
-| POST | `/projects/:projectId/approvals` | `RaiseApproval` | contractor |
-| PATCH | `/approvals/:approvalId` | `DecideApproval` | client |
+| Method | Path                                   | Dispatches            | Who           |
+| ------ | -------------------------------------- | --------------------- | ------------- |
+| POST   | `/auth/register`                       | `RegisterUser`        | public        |
+| POST   | `/auth/login`                          | `LoginUser`           | public        |
+| POST   | `/auth/logout`                         | —                     | authenticated |
+| GET    | `/auth/me`                             | —                     | authenticated |
+| POST   | `/projects`                            | `CreateProject`       | contractor    |
+| GET    | `/projects`                            | `ListProjectsForUser` | both          |
+| GET    | `/projects/:id`                        | `GetProjectDetail`    | participants  |
+| POST   | `/projects/:projectId/stages`          | `CreateStage`         | contractor    |
+| PATCH  | `/projects/:projectId/stages/:stageId` | `LogStageProgress`    | contractor    |
+| POST   | `/projects/:projectId/approvals`       | `RaiseApproval`       | contractor    |
+| PATCH  | `/approvals/:approvalId`               | `DecideApproval`      | client        |
 
 `PATCH /approvals/:id` is **not** nested under a project — approval ids are globally
 unique and the client reaches it from a notification link.
@@ -243,11 +249,13 @@ exists.
 app.use(helmet());
 app.use(cookieParser());
 app.enableCors({ origin: config.FRONTEND_ORIGIN, credentials: true });
-app.useGlobalPipes(new ValidationPipe({
-  whitelist: true,
-  forbidNonWhitelisted: true,
-  transform: true,
-}));
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+);
 app.useGlobalInterceptors(app.get(HttpLoggingInterceptor));
 app.useGlobalFilters(app.get(AllExceptionsFilter));
 app.enableShutdownHooks();
@@ -268,13 +276,13 @@ The token is never in a response body and never touched by JavaScript.
 cookie as a side effect:
 
 ```ts
-res.cookie('access_token', token, {
+res.cookie("access_token", token, {
   httpOnly: true,
-  secure: config.NODE_ENV === 'production',
-  sameSite: 'lax',
-  domain: config.COOKIE_DOMAIN || undefined,   // .akura.my in production
+  secure: config.NODE_ENV === "production",
+  sameSite: "lax",
+  domain: config.COOKIE_DOMAIN || undefined, // .akura.my in production
   maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: '/',
+  path: "/",
 });
 ```
 
@@ -428,11 +436,11 @@ someone must remember to extend.
 
 All in `LOG_DIR`, plain text `.txt`.
 
-| File | Content | Format |
-|---|---|---|
-| `http-1.txt` | Every HTTP request/response, inbound and outbound | NDJSON, one object per line |
-| `app-1.txt` | Human-readable summaries plus business events | One sentence per line |
-| `system-1.txt` | Bootstrap, shutdown, module init, DB connect, config validation, uncaught exceptions | One line per event |
+| File           | Content                                                                              | Format                      |
+| -------------- | ------------------------------------------------------------------------------------ | --------------------------- |
+| `http-1.txt`   | Every HTTP request/response, inbound and outbound                                    | NDJSON, one object per line |
+| `app-1.txt`    | Human-readable summaries plus business events                                        | One sentence per line       |
+| `system-1.txt` | Bootstrap, shutdown, module init, DB connect, config validation, uncaught exceptions | One line per event          |
 
 Each is a winston `File` transport with:
 
@@ -518,6 +526,7 @@ disconnect, module init, shutdown signal, uncaught exception, unhandled rejectio
 ## 12. Acceptance checklist
 
 ### Functional
+
 1. Register a contractor and a client (different emails).
 2. Contractor creates a project using the client's email.
 3. Contractor adds a stage, marks it `COMPLETED`.
@@ -526,6 +535,7 @@ disconnect, module init, shutdown signal, uncaught exception, unhandled rejectio
 6. Client fetches project detail → sees both.
 
 ### Auth
+
 7. Login response body contains **no token** — only user fields.
 8. `Set-Cookie` has `HttpOnly`, and `Secure` in production.
 9. `POST /auth/logout` clears it; `GET /auth/me` then returns 401.
@@ -533,6 +543,7 @@ disconnect, module init, shutdown signal, uncaught exception, unhandled rejectio
 11. Unknown email and wrong password produce **identical** error messages.
 
 ### Authorization — the cases that matter most
+
 12. Contractor tries `PATCH /approvals/:id` → **403**.
 13. Client tries to PATCH a stage → **403**.
 14. An unrelated third user tries `GET /projects/:id` → **403**.
@@ -540,6 +551,7 @@ disconnect, module init, shutdown signal, uncaught exception, unhandled rejectio
 16. Deciding an already-decided approval → **rejected** (domain invariant).
 
 ### Security
+
 17. A forced 500 returns a generic message with **no stack trace**; the stack is in
     `system-1.txt`.
 18. Six rapid failed logins → **429**.
@@ -548,11 +560,13 @@ disconnect, module init, shutdown signal, uncaught exception, unhandled rejectio
 21. No response anywhere contains `passwordHash`.
 
 ### Architecture
+
 22. A domain entity unit tests with no Nest, no Prisma, no database.
 23. No file in one context imports another context's `domain/` or `infrastructure/`.
 24. `grep -r "any" src/` finds no type annotations outside `*.spec.ts`.
 
 ### Logging
+
 25. A successful request writes one NDJSON line to `http-1.txt` **and** one summary
     line to `app-1.txt`, both stamped `+0800`.
 26. `grep -ri "password" logs/` after a registration returns **no plaintext password**.
@@ -566,12 +580,12 @@ disconnect, module init, shutdown signal, uncaught exception, unhandled rejectio
 
 ## 13. Out of scope for v1
 
-| Feature | Why it waits |
-|---|---|
-| Separate microservice deploys | Contexts already isolated; split on a scaling reason |
-| Event sourcing | CQRS does not require it; don't conflate them |
-| Separate read database | One Postgres is fine |
-| Progress claim PDF generation | Validate the core loop first |
-| Notifications (email / WhatsApp) | `ApprovalDecided` is the seam |
-| File upload handling | Store a `photoUrl` string for now |
-| Refresh tokens, password reset | Before real users, not before a pilot |
+| Feature                          | Why it waits                                         |
+| -------------------------------- | ---------------------------------------------------- |
+| Separate microservice deploys    | Contexts already isolated; split on a scaling reason |
+| Event sourcing                   | CQRS does not require it; don't conflate them        |
+| Separate read database           | One Postgres is fine                                 |
+| Progress claim PDF generation    | Validate the core loop first                         |
+| Notifications (email / WhatsApp) | `ApprovalDecided` is the seam                        |
+| File upload handling             | Store a `photoUrl` string for now                    |
+| Refresh tokens, password reset   | Before real users, not before a pilot                |

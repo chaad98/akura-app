@@ -25,7 +25,7 @@ progress and raises variation orders; the **client** approves or declines them.
 
 ## Repo boundaries
 
-The backend is a **separate repository** (`akura-api`, NestJS). Never create backend
+The backend is a **separate repository** (`akura-core`, NestJS). Never create backend
 folders, database code, or Next.js API routes that duplicate it.
 
 **No database access in this repo.** No Prisma, no `DATABASE_URL`, no direct SQL. All
